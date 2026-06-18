@@ -1,9 +1,8 @@
 import streamlit as st
-import fitz
+import fitz  # PyMuPDF
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import random
 
 # ---------------- UI CONFIG ----------------
 st.set_page_config(
@@ -15,31 +14,35 @@ st.title("📚 AI Learning Companion (Smart Study Assistant)")
 
 # ---------------- PDF PARSER ----------------
 def extract_text(pdf_file):
-    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-    text = ""
-    for page in doc:
-        text += page.get_text()
-    return text
+    try:
+        doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        return text
+    except Exception as e:
+        return f"Error reading PDF: {e}"
 
-# ---------------- TEXT CLEAN ----------------
+# ---------------- CLEAN TEXT ----------------
 def clean_text(text):
     text = re.sub(r'\s+', ' ', text)
-    return text
+    return text.strip()
 
 # ---------------- SUMMARY ----------------
 def generate_summary(text):
     sentences = text.split(".")
-    summary = ". ".join(sentences[:5])
-    return summary
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+    return ". ".join(sentences[:5])
 
 # ---------------- MCQ GENERATOR ----------------
 def generate_mcq(text):
     sentences = text.split(".")
     questions = []
 
-    for s in sentences[:10]:
-        if len(s.strip()) > 20:
-            q = f"What is mentioned in: '{s.strip()[:40]}...?'"
+    for s in sentences:
+        s = s.strip()
+        if len(s) > 40:
+            q = f"What is mentioned in: '{s[:50]}...?'"
             questions.append(q)
 
     return questions[:5]
@@ -49,26 +52,26 @@ def flashcards(text):
     sentences = text.split(".")
     cards = []
 
-    for s in sentences[:8]:
-        if len(s.strip()) > 20:
+    for s in sentences:
+        s = s.strip()
+        if len(s) > 40:
             cards.append({
-                "front": s[:60],
+                "front": s[:60] + "...",
                 "back": s
             })
 
-    return cards
+    return cards[:8]
 
 # ---------------- SIMPLE Q&A ----------------
 def answer_question(text, question):
     sentences = text.split(".")
-    best = ""
+    question_words = question.lower().split()
 
     for s in sentences:
-        if any(word.lower() in s.lower() for word in question.split()):
-            best = s
-            break
+        if any(word in s.lower() for word in question_words):
+            return s.strip()
 
-    return best if best else "Answer not found in document."
+    return "Answer not found in document."
 
 # ---------------- UI ----------------
 uploaded_file = st.file_uploader("📄 Upload Study PDF", type=["pdf"])
@@ -76,43 +79,46 @@ uploaded_file = st.file_uploader("📄 Upload Study PDF", type=["pdf"])
 if uploaded_file:
 
     text = extract_text(uploaded_file)
-    text = clean_text(text)
 
-    st.subheader("📊 Document Overview")
-    st.write("Total Characters:", len(text))
+    if "Error reading PDF" in text:
+        st.error(text)
+    else:
+        text = clean_text(text)
 
-    # ---------------- SUMMARY ----------------
-    st.subheader("🧠 Smart Summary")
-    summary = generate_summary(text)
-    st.info(summary)
+        st.subheader("📊 Document Overview")
+        st.write("Total Characters:", len(text))
 
-    # ---------------- MCQ ----------------
-    st.subheader("🎯 Practice MCQs")
-    mcqs = generate_mcq(text)
+        # ---------------- SUMMARY ----------------
+        st.subheader("🧠 Smart Summary")
+        summary = generate_summary(text)
+        st.info(summary)
 
-    for i, q in enumerate(mcqs):
-        st.write(f"{i+1}. {q}")
+        # ---------------- MCQ ----------------
+        st.subheader("🎯 Practice MCQs")
+        mcqs = generate_mcq(text)
 
-    # ---------------- FLASHCARDS ----------------
-    st.subheader("🧾 Flashcards")
+        for i, q in enumerate(mcqs):
+            st.write(f"{i+1}. {q}")
 
-    cards = flashcards(text)
+        # ---------------- FLASHCARDS ----------------
+        st.subheader("🧾 Flashcards")
+        cards = flashcards(text)
 
-    for c in cards:
-        with st.expander(c["front"]):
-            st.write(c["back"])
+        for c in cards:
+            with st.expander(c["front"]):
+                st.write(c["back"])
 
-    # ---------------- Q&A ----------------
-    st.subheader("💬 Ask Doubt from Notes")
+        # ---------------- Q&A ----------------
+        st.subheader("💬 Ask Doubt from Notes")
 
-    user_q = st.text_input("Ask a question")
+        user_q = st.text_input("Ask a question")
 
-    if user_q:
-        ans = answer_question(text, user_q)
-        st.success(ans)
+        if user_q:
+            ans = answer_question(text, user_q)
+            st.success(ans)
 
-    # ---------------- DOWNLOAD REPORT ----------------
-    report = f"""
+        # ---------------- DOWNLOAD REPORT ----------------
+        report = f"""
 AI STUDY REPORT
 ----------------
 
@@ -126,8 +132,9 @@ FLASHCARDS:
 {cards}
 """
 
-    st.download_button(
-        "📥 Download Study Notes",
-        report,
-        file_name="study_report.txt"
-    )
+        st.download_button(
+            "📥 Download Study Notes",
+            report,
+            file_name="study_report.txt"
+        )
+    
