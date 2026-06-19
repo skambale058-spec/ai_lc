@@ -1,9 +1,4 @@
 streamlit
-PyPDF2
+PyMuPDF==1.23.9
 scikit-learn
-sentence-transformers
-torch
 numpy
-pandas
-pymupdf
-reports.csv
