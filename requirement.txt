@@ -1,4 +1,4 @@
 streamlit
-PyMuPDF
-scikit-learn
 numpy
+scikit-learn
+pypdf
