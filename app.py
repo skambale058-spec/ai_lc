@@ -1,5 +1,5 @@
 import streamlit as st
-import fitz  # PyMuPDF
+from pypdf import PdfReader
 import re
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -12,12 +12,13 @@ st.title("📚 AI Learning Companion (Smart Study Assistant)")
 # ---------------- PDF TEXT EXTRACTION ----------------
 def extract_text(pdf_file):
     try:
-        pdf_bytes = pdf_file.read()
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        pdf = PdfReader(pdf_file)
 
         text = ""
-        for page in doc:
-            text += page.get_text()
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
 
         return text
 
@@ -45,7 +46,7 @@ def generate_mcq(sentences):
     for s in sentences[:10]:
         words = s.split()
         if len(words) > 8:
-            keyword = words[len(words)//2]  # simple keyword pick
+            keyword = words[len(words)//2]
             question = f"What is related to '{keyword}'?"
             mcqs.append((question, s))
 
@@ -90,6 +91,10 @@ if uploaded_file:
     else:
         text = clean_text(raw_text)
         sentences = get_sentences(text)
+
+        if len(sentences) == 0:
+            st.error("No readable text found in PDF.")
+            st.stop()
 
         # Vectorizer for Q&A
         vectorizer, vectors = build_vectorizer(sentences)
